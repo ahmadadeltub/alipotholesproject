@@ -1,0 +1,24 @@
+#!/usr/bin/expect -f
+set timeout -1
+spawn ssh -o StrictHostKeyChecking=no pi@192.168.1.2
+expect {
+    "password:" { send "pi\r"; exp_continue }
+    "pi@" { send "echo 'Connected via SSH'\r" }
+}
+
+# Wait for prompt
+expect "pi@"
+
+# Install dependencies if needed (using system site packages for picamera2 access)
+send "echo 'Checking dependencies...'\r"
+send "if ! python3 -c 'import ultralytics' 2>/dev/null; then echo 'Installing Ultralytics...'; pip3 install ultralytics --break-system-packages; fi\r"
+expect "pi@"
+
+# Run the script
+send "echo 'Starting Application...'\r"
+send "export DISPLAY=:0\r"
+send "python3 /home/pi/potholes.py\r"
+
+# Hand over control to user so they can see output, or wait for EOF if we just want to run it.
+# interact allows the user to Ctrl-C.
+interact

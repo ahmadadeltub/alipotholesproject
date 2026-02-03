@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Rover Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .custom-popup img {
+            width: 100%;
+            max-width: 200px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+
+        /* Bottom Info Box */
+        .info-box {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            text-align: center;
+            min-width: 250px;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .legend {
+            font-size: 12px;
+            margin-top: 5px;
+            color: #555;
+        }
+
+        .nav-btn {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            background: #4285F4;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+
+        .fix-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <div class="info-box">
+        <div class="title">Smart Rover Map</div>
+        <div style="font-size: 10px; color: #888; margin-bottom: 5px;">Designed By QSTSS School</div>
+        <div id="status" style="margin: 3px 0; font-size: 14px; color: #666;">Loading Data...</div>
+        <div class="legend">
+            🔵 You (Phone) &nbsp;|&nbsp; 📍 Rover (Blue) &nbsp;|&nbsp; 🔴 Pothole (Red)
+        </div>
+    </div>
+
+    <script>
+        // --- CUSTOM ICONS ---
+        const redIcon = new L.Icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        });
+
+        const greenIcon = new L.Icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        });
+
+        const blueIcon = new L.Icon({
+            iconUrl: '/images/rover_icon.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [50, 50], iconAnchor: [25, 50], popupAnchor: [0, -50], shadowSize: [50, 50]
+        });
+
+        // Init Map
+        const map = L.map('map').setView([25.2854, 51.5310], 12);
+
+        // Google Layers
+        const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+            maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        });
+        const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        });
+
+        googleHybrid.addTo(map);
+        L.control.layers({ "Google Hybrid": googleHybrid, "Google Streets": googleStreets }).addTo(map);
+
+        // --- PHONE GPS (Blue Dot) ---
+        map.locate({ setView: false, maxZoom: 16, watch: true, enableHighAccuracy: true });
+
+        function onLocationFound(e) {
+            var radius = e.accuracy / 2;
+            if (window.userMarker) {
+                window.userMarker.setLatLng(e.latlng);
+                window.userCircle.setLatLng(e.latlng);
+                window.userCircle.setRadius(radius);
+            } else {
+                window.userMarker = L.circleMarker(e.latlng, {
+                    radius: 8, fillColor: "#3388ff", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.8
+                }).addTo(map).bindPopup("You are here (Phone GPS)");
+                window.userCircle = L.circle(e.latlng, radius).addTo(map);
+                // Center map on first find
+                map.flyTo(e.latlng, 15);
+            }
+        }
+
+        function onLocationError(e) {
+            console.log("GPS Error: " + e.message);
+            document.getElementById('status').innerText = "⚠️ Phone GPS Disabled/Blocked";
+        }
+
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
+
+        // --- FETCH DATA (Red/Blue Markers) ---
+        let potholeMarkers = L.layerGroup().addTo(map); // Store markers in a layer group
+
+        async function loadPotholes() {
+            try {
+                const response = await fetch('/api/potholes');
+                const data = await response.json();
+
+                // Clear existing markers
+                potholeMarkers.clearLayers();
+
+                // Count basic stats
+                const potholes = data.filter(p => p.id !== "Current Location");
+                document.getElementById('status').innerText = `${potholes.length} Potholes Detected`;
+
+                data.forEach(p => {
+                    // Determine Type
+                    const isRover = (p.id === "Current Location");
+                    const isFixed = (p.status === 'fixed');
+
+                    let icon = redIcon;
+                    if (isRover) icon = blueIcon;
+                    else if (isFixed) icon = greenIcon; // ✅ Fixed
+
+                    const zIndex = isRover ? 1000 : 0; // Rover on top
+
+                    const marker = L.marker([p.lat, p.lon], { icon: icon, zIndexOffset: zIndex })
+                    potholeMarkers.addLayer(marker); // Add to layer group
+
+                    let popupContent = `<b>${p.id}</b>`;
+                    if (isFixed) popupContent += ` <span style="color:green; font-weight:bold;">(✅ Fixed)</span>`;
+                    popupContent += `<br>`;
+
+                    if (p.image) {
+                        popupContent += `<div class="custom-popup"><img src="/images/${p.image}" onclick="window.open(this.src)"></div>`;
+                    }
+                    popupContent += `<small>${p.date || ''}</small>`;
+
+                    // Add Buttons
+                    popupContent += `<div style="margin-top:5px; display:flex; gap:5px;">`;
+                    // Navigate
+                    popupContent += `<a href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" class="nav-btn" style="flex:1;">Navigate ➔</a>`;
+
+                    // Fix Button (only if not already fixed)
+                    if (!isFixed && !isRover) {
+                        popupContent += `<button onclick="resolvePothole('${p.id}', 'fixed')" class="fix-btn" style="flex:1;">✅ Fixed</button>`;
+                    } else if (isFixed) {
+                        popupContent += `<button onclick="resolvePothole('${p.id}', 'active')" class="fix-btn" style="flex:1; background:#f39c12;">Undo</button>`;
+                    }
+
+                    // Delete Button
+                    popupContent += `<button onclick="resolvePothole('${p.id}', 'deleted')" class="fix-btn" style="flex:1; background:#c0392b;">🗑</button>`;
+
+                    popupContent += `</div>`;
+
+                    marker.bindPopup(popupContent);
+                });
+            } catch (e) {
+                console.error(e);
+                document.getElementById('status').innerText = "Connection Error";
+            }
+        }
+
+        async function resolvePothole(id, status) {
+            // "active", "fixed", or "deleted"
+
+            let actionText = status === 'deleted' ? "DELETE this pothole permanently?" : "Update status?";
+            if (!confirm(actionText)) return;
+
+            try {
+                await fetch('/api/resolve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, status: status })
+                });
+                // Reload Map data
+                loadPotholes();
+            } catch (e) {
+                alert("Error updating status");
+            }
+        }
+
+        // Initial Load
+        loadPotholes();
+
+        // Auto-Refresh every 5 seconds for live tracking
+        setInterval(loadPotholes, 5000);
+    </script>
+</body>
+
+</html>

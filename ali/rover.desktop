@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=QSTSS Rover
+Comment=Smart Road Inspection System
+Exec=/bin/bash /home/pi/rover_launcher.sh
+Terminal=false
+X-KeepTerminal=true
+StartupNotify=true

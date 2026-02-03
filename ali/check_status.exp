@@ -1,0 +1,7 @@
+#!/usr/bin/expect -f
+set timeout 10
+spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null pi@192.168.1.2 "ls -l potholes.json; cat potholes.json; echo '---APP LOG---'; head -n 50 app.log; echo '---WEB LOG---'; head -n 20 web.log"
+expect {
+    "password:" { send "pi\r"; exp_continue }
+    eof
+}

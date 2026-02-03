@@ -1,0 +1,18 @@
+#!/usr/bin/expect -f
+set timeout -1
+spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null pi@192.168.1.2
+expect {
+    "password:" { send "pi\r"; exp_continue }
+    "pi@"
+}
+
+send "export DISPLAY=:0\r"
+send "cd /home/pi\r"
+send "python3 potholes.py\r"
+
+# We want to see output.
+expect "Running real-time pothole detection..."
+puts "\n--- Application Started Successfully ---"
+
+# Keep running
+interact
